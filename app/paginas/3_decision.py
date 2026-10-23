@@ -15,7 +15,8 @@ cuantil_optimo_val = costo_perdido / (costo_perdido + costo_ocioso)
 p_sugerido_idx = int(round(cuantil_optimo_val * 10) * 10)
 p_sugerido_idx = max(10, min(90, p_sugerido_idx))
 
-st.success(f"### Cuantil Óptimo Calculado: **p{p_sugerido_idx}** (Ratio: {cuantil_optimo_val:.2f})[cite: 13]")
+st.success(f"### Cuantil Óptimo Calculado: **p{p_sugerido_idx}** (Ratio: {cuantil_optimo_val:.2f})")
+
 st.markdown(f"""
-* **Interpretación:** Dado que un pasajero sin servicio cuesta **${costo_perdido}** frente a los **${costo_ocioso}** de tener un auto ocioso, la estrategia óptima recomienda cubrir la demanda hasta el nivel del percentil **p{p_sugerido_idx}** para maximizar la rentabilidad y minimizar la insatisfacción[cite: 13].
+* **Interpretación:** Dado que un pasajero sin servicio cuesta **${costo_perdido}** frente a los **${costo_ocioso}** de tener un auto ocioso, la estrategia óptima recomienda cubrir la demanda hasta el nivel del percentil **p{p_sugerido_idx}** para maximizar la rentabilidad y minimizar la insatisfacción.
 """)
