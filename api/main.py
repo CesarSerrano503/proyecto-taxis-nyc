@@ -7,6 +7,7 @@ import json
 
 app = FastAPI(title="API de Pronostico de Taxis NYC")
 
+# Carga de datos y modelo
 demanda_df = pd.read_parquet("demanda.parquet")
 demanda_df["PULocationID"] = demanda_df["PULocationID"].astype("category")
 
