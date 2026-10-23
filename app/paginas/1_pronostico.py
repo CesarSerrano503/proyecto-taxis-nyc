@@ -14,8 +14,10 @@ API_URL = st.secrets.get("API_URL", "https://tu-api-en-render.onrender.com")
 
 @st.cache_data
 def cargar_datos_locales():
-    ruta_parquet = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../app_data/demanda.parquet"))
-    ruta_modelo = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../app_data/modelo_pronostico.ubj"))
+    # Busca la carpeta app_data en la raíz del repositorio
+    base_dir = os.getcwd()
+    ruta_parquet = os.path.join(base_dir, "app_data", "demanda.parquet")
+    ruta_modelo = os.path.join(base_dir, "app_data", "modelo_pronostico.ubj")
     
     df_demanda = None
     modelo = None
@@ -93,7 +95,7 @@ if st.sidebar.button("Generar Pronóstico"):
         
         fig = go.Figure()
         
-        # Banda de incertidumbre p10 a p90[cite: 13]
+        # Banda de incertidumbre p10 a p90
         fig.add_trace(go.Scatter(
             x=df_res["hora"], y=df_res["cuantiles"].apply(lambda x: x.get("p90")),
             mode='lines', line=dict(width=0), showlegend=False
@@ -110,7 +112,7 @@ if st.sidebar.button("Generar Pronóstico"):
             mode='lines+markers', name='Mediana Pronosticada (p50)', line=dict(color='#0068c9', width=2)
         ))
         
-        # Valor real[cite: 13]
+        # Valor real
         if "real" in df_res.columns and df_res["real"].notnull().any():
             fig.add_trace(go.Scatter(
                 x=df_res["hora"], y=df_res["real"],
