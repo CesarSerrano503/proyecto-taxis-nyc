@@ -1,25 +1,21 @@
 import streamlit as st
 import pandas as pd
 
-st.title("🎯 Optimización y Toma de Decisiones")
-st.markdown("Herramienta de apoyo orientada a directivos y operadores de flotas para la distribución eficiente de unidades de taxi.")
-
-st.subheader("💡 Recomendaciones Operativas Basadas en Cuantiles")
-st.write("Utiliza los pronósticos de alta demanda (cuantiles superiores como p80 y p90) para anticipar la concentración de vehículos en zonas críticas.")
+st.title("🛡️ Optimización de Flota y Decisión Económica")
+st.markdown("Calcula cuántos taxis enviar por hora basándote en la asimetría de costos operativos y pérdida de ingresos.")
 
 col1, col2 = st.columns(2)
-
 with col1:
-    st.info("**Horarios Pico Detectados**")
-    st.write("- Mañanas (07:00 - 09:00)")
-    st.write("- Tardes / Noches (17:00 - 20:00)")
-
+    costo_ocioso = st.number_input("Costo de taxi ocioso (1 hora sin pasajero):", min_value=1.0, value=10.0, step=1.0)
 with col2:
-    st.success("**Estrategia Sugerida de Flota**")
-    st.write("- Reasignar 20% de unidades hacia hubs de alta demanda en Manhattan y aeropuertos.")
-    st.write("- Establecer incentivos dinámicos para conductores en horas de menor cobertura.")
+    costo_perdido = st.number_input("Costo por pasajero sin servicio (pérdida de viaje):", min_value=1.0, value=40.0, step=1.0)
 
-st.markdown("---")
-st.subheader("⚙️ Simulador de Asignación de Recursos")
-unidades = st.slider("Número total de unidades disponibles para reasignar:", min_value=50, max_value=1000, value=200, step=50)
-st.write(f"Con **{unidades} unidades**, se recomienda distribuir 60% en zonas comerciales y 40% en zonas residenciales/periféricas.")
+# Fórmula del cuantil óptimo (Newsvendor model)
+cuantil_optimo_val = costo_perdido / (costo_perdido + costo_ocioso)
+p_sugerido_idx = int(round(cuantil_optimo_val * 10) * 10)
+p_sugerido_idx = max(10, min(90, p_sugerido_idx))
+
+st.success(f"### Cuantil Óptimo Calculado: **p{p_sugerido_idx}** (Ratio: {cuantil_optimo_val:.2f})[cite: 13]")
+st.markdown(f"""
+* **Interpretación:** Dado que un pasajero sin servicio cuesta **${costo_perdido}** frente a los **${costo_ocioso}** de tener un auto ocioso, la estrategia óptima recomienda cubrir la demanda hasta el nivel del percentil **p{p_sugerido_idx}** para maximizar la rentabilidad y minimizar la insatisfacción[cite: 13].
+""")
