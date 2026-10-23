@@ -1,49 +1,90 @@
 import streamlit as st
 import pandas as pd
 import requests
-import json
-import os
-from datetime import date, timedelta
+import plotly.graph_objects as go
+from datetime import datetime, date
 
 st.title("📈 Pronóstico de Demanda de Taxis en NYC")
-st.markdown("Consulta las predicciones de demanda por zona y fecha utilizando el modelo de Machine Learning.")
+st.markdown("Consulta las predicciones de demanda por zona y fecha utilizando el modelo de Machine Learning con cuantiles.")
 
-# Cargar información de zonas desde info_modelo.json o dataframe
-try:
-    with open("info_modelo.json", "r", encoding="utf-8") as f:
-        info_modelo = json.load(f)
-    nombres_zonas = info_modelo.get("nombres_zonas", {})
-    distritos_zonas = info_modelo.get("distritos_zonas", {})
-    zonas_ids = info_modelo.get("zonas", [4, 7, 13, 24, 43, 48, 79, 87, 88, 90, 100, 107, 113, 114, 125, 137, 140, 141, 142, 143, 144, 148, 151, 158, 161, 162, 163, 164, 170, 186, 209, 211, 229, 230, 231, 232, 233, 234, 236, 237, 238, 239, 249, 261, 262, 263])
-except:
-    zonas_ids = [4, 7, 13, 24, 43]
-    nombres_zonas = {}
-    distritos_zonas = {}
+# URL de tu API en Render (cámbiala por la tuya cuando la despliegues, o usa datos locales de respaldo)
+API_URL = st.secrets.get("API_URL", "https://tu-api-en-render.onrender.com")
 
-st.sidebar.header("Parámetros de Consulta")
+@st.cache_data
+def obtener_info_api():
+    try:
+        response = requests.get(f"{API_URL}/info", timeout=5)
+        if response.status_code == 200:
+            return response.json()
+    except:
+        pass
+    # Respaldo local si la API aún no está arriba en Render
+    return {
+        "zonas": [{"id": 7, "nombre": "Astoria", "distrito": "Queens"}, {"id": 132, "nombre": "JFK Airport", "distrito": "Queens"}],
+        "fechas_disponibles": ["2024-01-25", "2024-01-26", "2024-01-27", "2024-01-28", "2024-01-29", "2024-01-30", "2024-01-31", "2024-02-01"]
+    }
 
-# Selector de Zona
-opciones_zonas = {z: f"{nombres_zonas.get(str(z), 'Zona')} (ID: {z})" for z in zonas_ids}
-zona_sel = st.sidebar.selectbox("Selecciona la Zona de Origen:", list(opciones_zonas.keys()), format_func=lambda x: opciones_zonas[x])
+info = obtener_info_api()
+zonas_opciones = {f"{z['nombre']} (ID: {z['id']})": z['id'] for z in info.get("zonas", [])}
 
-# Selector de Fecha
-fecha_sel = st.sidebar.date_input("Selecciona la Fecha:", value=date(2024, 1, 25), min_value=date(2024, 1, 25), max_value=date(2024, 2, 1))
+st.sidebar.subheader("Parámetros de Consulta")
+zona_seleccionada_str = st.sidebar.selectbox("Selecciona la Zona de Origen:", list(zonas_opciones.keys()) if zonas_opciones else ["Zona (ID: 7)"])
+zona_id = zonas_opciones.get(zona_seleccionada_str, 7)
+
+fechas_disp = [datetime.strptime(f, "%Y-%m-%d").date() for f in info.get("fechas_disponibles", ["2024-01-25"])]
+fecha_seleccionada = st.sidebar.date_input("Selecciona la Fecha:", value=fechas_disp[0], min_value=min(fechas_disp), max_value=max(fechas_disp))
 
 if st.sidebar.button("Generar Pronóstico"):
-    st.subheader(f"Resultados para la zona seleccionada el {fecha_sel}")
-    
-    # Intento de lectura local de demanda para mostrar simulación rápida si no hay API corriendo
-    try:
-        demanda_df = pd.read_parquet("demanda.parquet")
-        filas = demanda_df[(demanda_df["PULocationID"] == zona_sel) & (demanda_df["fecha_hora"].dt.date == fecha_sel)]
-        
-        if not filas.empty:
-            st.success("¡Pronóstico generado con éxito!")
-            st.dataframe(filas[["hora", "viajes", "lag_168"]], use_container_width=True)
-            
-            # Gráfica interactiva con Plotly
-            st.line_chart(filas.set_index("hora")["viajes"])
-        else:
-            st.warning("No se encontraron registros exactos para esa fecha en el archivo local.")
-    except Exception as e:
-        st.info("Mostrando interfaz lista para conectar con los datos.")
+    with st.spinner("Consultando la API de pronóstico..."):
+        try:
+            res = requests.get(f"{API_URL}/pronostico", params={"zona_id": zona_id, "fecha": str(fecha_seleccionada)}, timeout=10)
+            if res.status_code == 200:
+                data = res.json()
+                df_res = pd.DataFrame(data["horas"])
+                
+                st.subheader(f"Resultados para {zona_seleccionada_str} el {fecha_seleccionada}")
+                
+                # Gráfico con Plotly y banda de incertidumbre (p10 - p90)
+                fig = go.Figure()
+                
+                # Banda de incertidumbre p10 a p90
+                fig.add_trace(go.Scatter(
+                    x=df_res["hora"], y=df_res["cuantiles"].apply(lambda x: x.get("p90")),
+                    mode='lines', line=dict(width=0), showlegend=False
+                ))
+                fig.add_trace(go.Scatter(
+                    x=df_res["hora"], y=df_res["cuantiles"].apply(lambda x: x.get("p10")),
+                    mode='lines', line=dict(width=0), fill='tonexty',
+                    fillcolor='rgba(68, 68, 68, 0.2)', name='Banda de Incertidumbre [p10-p90]'
+                ))
+                
+                # Mediana (p50)
+                fig.add_trace(go.Scatter(
+                    x=df_res["hora"], y=df_res["cuantiles"].apply(lambda x: x.get("p50")),
+                    mode='lines+markers', name='Mediana Pronosticada (p50)', line=dict(color='blue', width=2)
+                ))
+                
+                # Valor Real (si existe)
+                if "real" in df_res.columns and df_res["real"].notnull().any():
+                    fig.add_trace(go.Scatter(
+                        x=df_res["hora"], y=df_res["real"],
+                        mode='lines+markers', name='Valor Real', line=dict(color='green', dash='dash', width=2)
+                    ))
+
+                # Igual que hace una semana (lag_168)
+                if "hace_una_semana" in df_res.columns and df_res["hace_una_semana"].notnull().any():
+                    fig.add_trace(go.Scatter(
+                        x=df_res["hora"], y=df_res["hace_una_semana"],
+                        mode='lines', name='Igual hace una semana', line=dict(color='orange', width=1)
+                    ))
+
+                fig.update_layout(xaxis_title="Hora del Día", yaxis_title="Número de Viajes", template="plotly_dark")
+                st.plotly_chart(fig, use_container_width=True)
+                
+                st.metric(label="Demanda Mediana Total Esperada (Día)", value=int(df_res["cuantiles"].apply(lambda x: x.get("p50")).sum()))
+            else:
+                st.error("La API no devolvió datos para los parámetros seleccionados.")
+        except Exception as e:
+            st.error(f"No se pudo conectar con la API en Render: {e}[cite: 14]. Asegúrate de que la API esté desplegada correctamente.")
+else:
+    st.info("Selecciona una zona y fecha en la barra lateral y presiona **Generar Pronóstico**.")
