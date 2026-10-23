@@ -7,6 +7,6 @@ plotly
 requests
 streamlit
 scikit-learn==1.6.1
-xgboost==3.4.1
+xgboost
 pandas==2.2.3
 numpy==2.1.3
