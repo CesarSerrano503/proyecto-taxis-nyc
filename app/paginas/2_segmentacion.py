@@ -6,9 +6,7 @@ st.title("🧩 Segmentación de Zonas de Taxi en NYC")
 st.markdown("Explora los grupos o clusters en los que se dividen las zonas de Nueva York según sus patrones de viaje.")
 
 # Cargar el archivo CSV de zonas segmentadas asegurando la ruta correcta
-ruta_csv = "zonas_segmentadas.csv"
-if not os.path.exists(ruta_csv):
-    ruta_csv = "app/zonas_segmentadas.csv" # Por si acaso está dentro de la carpeta app
+ruta_csv = "app/data/zonas_segmentadas.csv" # Por si acaso está dentro de la carpeta app
 
 if os.path.exists(ruta_csv):
     df_zonas = pd.read_csv(ruta_csv)
