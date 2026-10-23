@@ -11,6 +11,10 @@ app = FastAPI(title="API de Pronostico de Taxis NYC")
 demanda_df = pd.read_parquet("demanda.parquet")
 demanda_df["PULocationID"] = demanda_df["PULocationID"].astype("category")
 
+# Asegurar que la columna de fecha sea de tipo datetime desde el inicio
+if not pd.api.types.is_datetime64_any_dtype(demanda_df["fecha_hora"]):
+    demanda_df["fecha_hora"] = pd.to_datetime(demanda_df["fecha_hora"])
+
 with open("info_modelo.json", "r", encoding="utf-8") as f:
     info_modelo = json.load(f)
 
@@ -40,9 +44,14 @@ def get_info():
 
 @app.get("/pronostico")
 def get_pronostico(zona_id: int = Query(...), fecha: date = Query(...)):
-    filas = demanda_df[(demanda_df["PULocationID"] == zona_id) & (demanda_df["fecha_hora"].dt.date == fecha)].copy()
+    # Filtrar convirtiendo de forma segura el ID de zona y comparando la fecha
+    filas = demanda_df[
+        (demanda_df["PULocationID"].astype(int) == int(zona_id)) & 
+        (demanda_df["fecha_hora"].dt.date == fecha)
+    ].copy()
+    
     if filas.empty:
-        raise HTTPException(status_code=404, detail="No hay datos para esa zona o fecha")
+        raise HTTPException(status_code=404, detail=f"No hay datos para la zona {zona_id} en la fecha {fecha}")
 
     filas = filas.sort_values("hora")
     preds = modelo.predict(filas[VARIABLES])
